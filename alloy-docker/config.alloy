@@ -12,7 +12,7 @@
 //      Your Laravel app (Nginx, PHP-FPM) keeps running via systemctl as-is.
 //
 // IMPORTANT: Set HUB_IP in alloy-docker/.env to the private IP of your
-//            observability EC2 (e.g., 10.0.1.50).
+//            observability EC2 (Grafana hub: 172.31.27.45).
 // =============================================================================
 
 // ---------------------------------------------------------------------------

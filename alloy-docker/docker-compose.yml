@@ -57,11 +57,11 @@ services:
       # Persistent storage for Alloy's WAL (Write-Ahead Log)
       - alloy-data:/var/lib/alloy/data
     environment:
-      - HOSTNAME=${HOSTNAME:-laravel-app-01}
-      - INSTANCE_NAME=${INSTANCE_NAME:-laravel-app-01}
+      - HOSTNAME=${HOSTNAME:-cips-staging}
+      - INSTANCE_NAME=${INSTANCE_NAME:-cips-staging}
       - ENVIRONMENT=${ENVIRONMENT:-staging}
       - TZ_NAME=${TZ_NAME:-Asia/Kuala_Lumpur}
-      - HUB_IP=${HUB_IP:-10.0.1.50}
+      - HUB_IP=${HUB_IP:-172.31.27.45}
     healthcheck:
       test:
         [
