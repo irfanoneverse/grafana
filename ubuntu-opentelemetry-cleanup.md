@@ -8,7 +8,24 @@ CIPS paths and labels:
 - Alloy directory: `/opt/monitoring/alloy-docker`
 - Instance name: `cips-staging`
 
-## 1) Check what OpenTelemetry footprint still exists
+## 1) Stop Grafana Alloy containers first
+
+Stop the monitoring containers before removing OpenTelemetry from the Laravel app. This does not stop Nginx, PHP-FPM, or the Laravel application.
+
+```bash
+cd /opt/monitoring/alloy-docker
+docker compose down
+docker ps
+```
+
+If the Compose directory is not available but the containers are still running, stop only the monitoring containers directly:
+
+```bash
+docker stop alloy nginx-exporter phpfpm-exporter
+docker ps
+```
+
+## 2) Check what OpenTelemetry footprint still exists
 
 ```bash
 sudo systemctl list-unit-files | grep -Ei 'otel|opentelemetry|collector'
@@ -16,17 +33,34 @@ docker ps --format '{{.Names}} {{.Image}}' | grep -Ei 'otel|opentelemetry|collec
 ps aux | grep -Ei 'otel|opentelemetry|collector' | grep -v grep
 ```
 
-## 2) Remove OpenTelemetry from Laravel app
+## 3) Remove OpenTelemetry from Laravel app
 
 Run inside your Laravel app directory:
 
 ```bash
 cd /data/cips
 composer remove keepsuit/laravel-opentelemetry open-telemetry/sdk open-telemetry/exporter-otlp
+
+cd /data/cips
+
+# Delete the stale bootstrap cache files directly
+rm -f bootstrap/cache/config.php
+rm -f bootstrap/cache/services.php
+rm -f bootstrap/cache/packages.php
+
+# Also remove the opentelemetry config file since the package is gone
+rm -f config/opentelemetry.php
+
+# Now artisan should work again — clear everything properly
+php artisan optimize:clear
+
+# Regenerate the cache
+php artisan optimize
+
 rm -f config/opentelemetry.php
 ```
 
-### 2a) Check for remaining OTel references in app code
+### 3a) Check for remaining OTel references in app code
 
 Even after removing packages, middleware or other files may still import OTel classes and cause a 500 on every request. Scan for them:
 
@@ -37,10 +71,14 @@ grep -r "opentelemetry\|OpenTelemetry\|keepsuit" config/ bootstrap/ app/ 2>/dev/
 If any files appear (e.g. `app/Http/Middleware/TraceIdMiddleware.php`), remove the OTel dependency from them. For a middleware that only injected a trace ID into logs, replace the entire file with a safe no-op:
 
 ```bash
+cd /data/cips
 test -f app/Http/Middleware/TraceIdMiddleware.php
+mkdir -p /root/cips-otel-backup
+cp app/Http/Middleware/TraceIdMiddleware.php /root/cips-otel-backup/TraceIdMiddleware.php.bak
 
 cat > app/Http/Middleware/TraceIdMiddleware.php << 'EOF'
 <?php
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -56,7 +94,20 @@ class TraceIdMiddleware
 EOF
 ```
 
-### 2b) Remove OTEL\_\* variables from .env
+If you already created a backup inside the app directory, move it outside `app/` so the verification scan does not keep finding old OTel references:
+
+```bash
+mkdir -p /root/cips-otel-backup
+mv app/Http/Middleware/TraceIdMiddleware.php.bak /root/cips-otel-backup/TraceIdMiddleware.php.bak 2>/dev/null || true
+```
+
+Verify the OTel references are gone:
+
+```bash
+grep -r "opentelemetry\|OpenTelemetry\|keepsuit" config/ bootstrap/ app/ 2>/dev/null
+```
+
+### 3b) Remove OTEL\_\* variables from .env
 
 ```bash
 grep -n '^OTEL_' /data/cips/.env || true
@@ -68,7 +119,7 @@ Also remove from:
 - deployment secrets / CI variables
 - process manager configs (if any)
 
-### 2c) Fix storage permissions (if composer was run as root)
+### 3c) Fix storage permissions (if composer was run as root)
 
 Running `composer` as root changes ownership of storage files, causing PHP-FPM to fail writing logs. Fix with:
 
@@ -77,7 +128,7 @@ chown -R www-data:www-data /data/cips/storage
 chown -R www-data:www-data /data/cips/bootstrap/cache
 ```
 
-### 2d) Clear Laravel caches
+### 3d) Clear Laravel caches
 
 ```bash
 cd /data/cips
@@ -94,7 +145,7 @@ php artisan optimize:clear
 >
 > Then re-run `php artisan optimize:clear`.
 
-## 3) Stop and disable OpenTelemetry services
+## 4) Stop and disable OpenTelemetry services
 
 ```bash
 sudo systemctl stop otelcol otel-collector aws-otel-collector 2>/dev/null || true
@@ -102,7 +153,7 @@ sudo systemctl disable otelcol otel-collector aws-otel-collector 2>/dev/null || 
 sudo systemctl daemon-reload
 ```
 
-## 4) Uninstall OpenTelemetry packages (Ubuntu)
+## 5) Uninstall OpenTelemetry packages (Ubuntu)
 
 ```bash
 sudo apt update
@@ -110,13 +161,13 @@ sudo apt remove -y otelcol otelcol-contrib aws-otel-collector || true
 sudo apt autoremove -y
 ```
 
-## 5) Delete leftover OpenTelemetry files (if present)
+## 6) Delete leftover OpenTelemetry files (if present)
 
 ```bash
 sudo rm -rf /etc/otelcol* /etc/otel-collector* /opt/aws/aws-otel-collector /var/lib/otelcol* /var/log/otel* 2>/dev/null || true
 ```
 
-## 6) Remove old OpenTelemetry Docker containers/images (if used before)
+## 7) Remove old OpenTelemetry Docker containers/images (if used before)
 
 ```bash
 docker ps -a --format '{{.ID}} {{.Names}} {{.Image}}' | grep -Ei 'otel|opentelemetry|collector'
@@ -124,7 +175,14 @@ docker ps -a --format '{{.ID}} {{.Names}} {{.Image}}' | grep -Ei 'otel|opentelem
 
 If any appear, remove them explicitly.
 
-## 7) Verify only Grafana Alloy path is active
+## 8) Start and verify Grafana Alloy path is active
+
+Start the monitoring containers again:
+
+```bash
+cd /opt/monitoring/alloy-docker
+docker compose up -d
+```
 
 ```bash
 cd /opt/monitoring/alloy-docker
