@@ -1,16 +1,20 @@
-# OpenTelemetry Cleanup Guide
+# games-staging OpenTelemetry Cleanup Guide
 
-This guide removes an old Laravel OpenTelemetry setup while keeping the Grafana Alloy client stack.
+This guide removes an old Laravel OpenTelemetry setup from the `games-staging` Laravel EC2 while keeping the Grafana Alloy client stack.
 
-Example CIPS values:
+games-staging values:
 
-| Value | Example |
-| --- | --- |
-| Laravel app directory | `/data/cips` |
-| Client stack directory | `/opt/grafana-nodes/client-server` |
-| Instance name | `cips-staging` |
+| Value                     | Setting                            |
+| ------------------------- | ---------------------------------- |
+| Instance name             | `games-staging`                    |
+| Private IP                | `172.31.47.107`                    |
+| Public IP                 | `3.0.83.58`                        |
+| Laravel app directory     | `/data/laravel`                    |
+| Laravel log directory     | `/data/laravel/storage/logs`       |
+| Client stack directory    | `/opt/grafana-nodes/client-server` |
+| Monitoring hub private IP | `172.31.27.45`                     |
 
-Adjust paths for the real server before running commands.
+Run these commands on the `games-staging` EC2 instance.
 
 ## 1. Stop Grafana Alloy Containers
 
@@ -44,14 +48,14 @@ ps aux | grep -Ei 'otel|opentelemetry|collector' | grep -v grep
 Run inside the Laravel app directory:
 
 ```text
-cd /data/cips
+cd /data/laravel
 composer remove keepsuit/laravel-opentelemetry open-telemetry/sdk open-telemetry/exporter-otlp
 ```
 
 Remove stale Laravel cache files:
 
 ```text
-cd /data/cips
+cd /data/laravel
 rm -f bootstrap/cache/config.php
 rm -f bootstrap/cache/services.php
 rm -f bootstrap/cache/packages.php
@@ -67,13 +71,14 @@ If `composer remove` says a package is not installed, continue with the remainin
 Scan for OpenTelemetry references:
 
 ```text
-cd /data/cips
+cd /data/laravel
 grep -r "opentelemetry\|OpenTelemetry\|keepsuit" config/ bootstrap/ app/ 2>/dev/null
 ```
 
 If middleware such as `app/Http/Middleware/TraceIdMiddleware.php` only existed to inject OpenTelemetry trace IDs, replace it with a safe no-op:
 
-```php
+cat > app/Http/Middleware/TraceIdMiddleware.php << 'EOF'
+
 <?php
 
 namespace App\Http\Middleware;
@@ -88,7 +93,7 @@ class TraceIdMiddleware
         return $next($request);
     }
 }
-```
+EOF
 
 Then scan again:
 
@@ -103,7 +108,7 @@ If references remain, remove imports, service providers, middleware registration
 Open the Laravel environment file:
 
 ```text
-nano /data/cips/.env
+nano /data/laravel/.env
 ```
 
 Remove lines that start with:
@@ -124,8 +129,8 @@ Also remove OpenTelemetry variables from:
 If Composer or cleanup commands were run as root, restore writable directory ownership:
 
 ```text
-sudo chown -R www-data:www-data /data/cips/storage
-sudo chown -R www-data:www-data /data/cips/bootstrap/cache
+sudo chown -R www-data:www-data /data/laravel/storage
+sudo chown -R www-data:www-data /data/laravel/bootstrap/cache
 ```
 
 Adjust the user and group if the server runs PHP-FPM as a different user.
@@ -133,7 +138,7 @@ Adjust the user and group if the server runs PHP-FPM as a different user.
 ## 7. Clear Laravel Caches
 
 ```text
-cd /data/cips
+cd /data/laravel
 php artisan optimize:clear
 ```
 
@@ -223,13 +228,13 @@ grep -nE 'INSTANCE_NAME|ENVIRONMENT|LARAVEL_LOG_DIR|HUB_IP' /opt/grafana-nodes/c
 docker compose exec alloy env | grep -E 'INSTANCE_NAME|ENVIRONMENT|HUB_IP'
 ```
 
-Expected CIPS example values:
+Expected games-staging values:
 
 ```text
-INSTANCE_NAME=cips-staging
+INSTANCE_NAME=games-staging
 ENVIRONMENT=staging
-LARAVEL_LOG_DIR=/data/cips/storage/logs
-HUB_IP=10.0.1.50
+LARAVEL_LOG_DIR=/data/laravel/storage/logs
+HUB_IP=172.31.27.45
 ```
 
 Cleanup is complete when:
