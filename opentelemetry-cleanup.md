@@ -4,11 +4,11 @@ This guide removes an old Laravel OpenTelemetry setup while keeping the Grafana 
 
 Example CIPS values:
 
-| Value | Example |
-| --- | --- |
-| Laravel app directory | `/data/cips` |
+| Value                  | Example                            |
+| ---------------------- | ---------------------------------- |
+| Laravel app directory  | `/data/cips`                       |
 | Client stack directory | `/opt/grafana-nodes/client-server` |
-| Instance name | `cips-staging` |
+| Instance name          | `cips-staging`                     |
 
 Adjust paths for the real server before running commands.
 
@@ -67,13 +67,14 @@ If `composer remove` says a package is not installed, continue with the remainin
 Scan for OpenTelemetry references:
 
 ```text
-cd /data/cips
+cd /data/laravel
 grep -r "opentelemetry\|OpenTelemetry\|keepsuit" config/ bootstrap/ app/ 2>/dev/null
 ```
 
 If middleware such as `app/Http/Middleware/TraceIdMiddleware.php` only existed to inject OpenTelemetry trace IDs, replace it with a safe no-op:
 
-```php
+cat > app/Http/Middleware/TraceIdMiddleware.php << 'EOF'
+
 <?php
 
 namespace App\Http\Middleware;
@@ -88,7 +89,7 @@ class TraceIdMiddleware
         return $next($request);
     }
 }
-```
+EOF
 
 Then scan again:
 
