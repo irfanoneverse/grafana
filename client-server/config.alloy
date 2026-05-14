@@ -1,5 +1,5 @@
 // =============================================================================
-// Grafana Alloy Configuration — Docker Deployment (Laravel Application Node)
+// Grafana Alloy Configuration — Docker Deployment (games-staging Laravel Node)
 // =============================================================================
 // This config is designed to run inside a Docker container with host networking.
 // It is deployed via Docker Compose instead of a systemd service.
@@ -11,7 +11,7 @@
 //      Your Laravel app (Nginx, PHP-FPM) keeps running via systemctl as-is.
 //
 // IMPORTANT: Set HUB_IP in client-server/.env to the private IP of your
-//            observability EC2, for example 10.0.1.50.
+//            observability EC2.
 // =============================================================================
 
 // ---------------------------------------------------------------------------
@@ -19,8 +19,9 @@
 // ---------------------------------------------------------------------------
 
 // Discover local log files.
-// Laravel apps often write multiple channel logs into the same storage/logs
-// directory. Collect all .log files and label them by channel.
+// games-staging writes many dated channel logs into /data/laravel/storage/logs.
+// Collect all .log files and label them by channel, for example laravel, cips,
+// cxp, heygames, maxis, moogold, onegames, wallet, worker, and bucket jobs.
 local.file_match "laravel_logs" {
   path_targets = [
     // Laravel application and channel logs (mounted from host)
@@ -78,10 +79,15 @@ loki.process "laravel_pipeline" {
     }
   }
 
-  // Extract log channel from filename (e.g. audit, worker, laravel)
+  // Extract log channel from filename.
+  // Examples:
+  // - laravel-2026-05-14.log -> laravel
+  // - laravel.log -> laravel
+  // - bucket_create_transactions-2024-03-12.log -> bucket_create_transactions
+  // - export_worker.log -> export_worker
   stage.regex {
     source     = "filename"
-    expression = ".*/(?P<channel>[a-z0-9_-]+)(?:-\\d{4}-\\d{2}-\\d{2})?\\.log$"
+    expression = "^(?:.*/)?(?P<channel>[a-z0-9_]+)(?:-\\d{4}-\\d{2}-\\d{2})?\\.log$"
   }
   stage.labels {
     values = {

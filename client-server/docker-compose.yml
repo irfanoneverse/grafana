@@ -1,8 +1,8 @@
 # =============================================================================
-# Docker Compose — Monitoring Agent Stack (Laravel App EC2)
+# Docker Compose — Monitoring Agent Stack (games-staging Laravel EC2)
 # =============================================================================
 # Deploys the observability agent (Grafana Alloy) as a Docker container
-# on each Laravel EC2 instance.
+# on the games-staging Laravel EC2 instance.
 #
 # WHAT THIS DOES:
 #   - Runs Alloy in Docker to collect logs and metrics
@@ -20,8 +20,8 @@
 #
 # IMPORTANT: Before running, create .env from .env.example and set:
 #   1. HUB_IP → your monitoring hub private IP
-#   2. INSTANCE_NAME → unique name per EC2
-#   3. LARAVEL_LOG_DIR → Laravel storage/logs path on this EC2
+#   2. INSTANCE_NAME → games-staging
+#   3. LARAVEL_LOG_DIR → /data/laravel/storage/logs
 # =============================================================================
 
 services:
